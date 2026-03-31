@@ -1,30 +1,29 @@
 # app.py
-
 import streamlit as st
 import numpy as np
-from PIL import Image, ImageOps
+from PIL import Image
 from streamlit_drawable_canvas import st_canvas
 import onnxruntime as ort
 
 # -----------------------------
 # Load the ONNX model
 # -----------------------------
-ort_session = ort.InferenceSession("digit_model.onnx")  # Ensure this file exists
+# Make sure digit_model.onnx is in the same folder
+ort_session = ort.InferenceSession("digit_model.onnx")
 
 # -----------------------------
 # Streamlit App UI
 # -----------------------------
-st.set_page_config(page_title="Handwritten Digit Recognition", layout="centered")
-st.title("✍️ Handwritten Digit Recognition")
+st.title("Handwritten Digit Recognition (ONNX)")
 
 st.write("Draw a digit (0-9) below:")
 
 # Create a drawable canvas
 canvas_result = st_canvas(
-    fill_color="#000000",  # Black background
-    stroke_width=12,
-    stroke_color="#FFFFFF",  # White pen
-    background_color="#000000",
+    fill_color="black",  # Drawing color
+    stroke_width=15,
+    stroke_color="white",
+    background_color="black",
     height=280,
     width=280,
     drawing_mode="freedraw",
@@ -32,28 +31,26 @@ canvas_result = st_canvas(
 )
 
 # -----------------------------
-# Predict Button
+# Prediction logic
 # -----------------------------
-if st.button("Predict") and canvas_result.image_data is not None:
-    # Get image from canvas
-    img = Image.fromarray(np.uint8(canvas_result.image_data))
-    
-    # Convert to grayscale
-    img = ImageOps.grayscale(img)
-    
-    # Resize to 28x28 (MNIST size)
+if canvas_result.image_data is not None:
+    # Convert the drawn image to grayscale 28x28
+    img = Image.fromarray(canvas_result.image_data.astype("uint8")).convert("L")
     img = img.resize((28, 28))
+    img_array = np.array(img)
     
-    # Convert to numpy array and normalize
-    img_array = np.array(img) / 255.0
-    
-    # Add batch and channel dimension (1, 28, 28, 1)
+    # Normalize and reshape for model
+    img_array = img_array / 255.0  # scale to 0-1
     img_array = img_array.reshape(1, 28, 28, 1).astype(np.float32)
     
-    # ONNX inference
+    # Run ONNX inference
     outputs = ort_session.run(None, {"input": img_array})
+    pred = np.argmax(outputs[0])
     
-    # Get predicted digit
-    pred = np.argmax(outputs[0], axis=1)[0]
-    
-    st.success(f"Predicted Digit: **{pred}**")
+    st.write(f"**Predicted Digit: {pred}**")
+
+# -----------------------------
+# Optional: Clear canvas button
+# -----------------------------
+if st.button("Clear Canvas"):
+    st.experimental_rerun()
